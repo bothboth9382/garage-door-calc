@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>車庫門訂單與估價計算系統</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts Noto Sans TC 與 Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+        }
+        /* 數字輸入框隱藏上下微調箭頭，保持版面整潔 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        /* 等寬數字對齊 */
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        /* 列印樣式控制 */
+        @media print {
+            body {
+                background-color: #ffffff !important;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            #print-sheet {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 頂部導覽列 (列印時隱藏) -->
+    <header class="no-print bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-wide">車庫門訂單與估價計算系統</h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">專業工程規格試算・即時報價單生成</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button type="button" onclick="resetFormModal()" class="px-3 py-2 text-xs sm:text-sm font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition">
+                    清除重填
+                </button>
+                <button type="button" onclick="openPrintPreview()" class="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition flex items-center space-x-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                    </svg>
+                    <span>正式報價單 / 列印</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主內容操作區 (列印時隱藏) -->
+    <main class="no-print flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- 左側表單輸入區 (佔 8 欄) -->
+            <div class="lg:col-span-8 space-y-6">
+
+                <!-- 1. 訂單基本資料區塊 -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center mr-2.5">1</span>
+                            訂單基本資料
+                        </h2>
+                        <button type="button" onclick="generateOrderNo()" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                            ↻ 重新產生單號
+                        </button>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">訂單編號</label>
+                            <input type="text" id="orderNo" class="w-full rounded-lg border-slate-300 border px-3.5 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="例如：ORD-20261120-01">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">客戶姓名</label>
+                            <input type="text" id="customerName" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border px-3.5 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="請輸入客戶姓名或公司名稱">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">聯絡電話</label>
+                            <input type="tel" id="customerPhone" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border px-3.5 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="例如：0912-345-678">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">案場地址</label>
+                            <input type="text" id="siteAddress" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border px-3.5 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="請輸入安裝案場地址">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 門面規格與基本計價區塊 -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center mr-2.5">2</span>
+                            門面規格與基本計價
+                        </h2>
+                        <span class="text-xs font-medium px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                            ※ 備註：基本金額為全鋼板、基本色烤漆
+                        </span>
+                    </div>
+                    <div class="p-5 space-y-5">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">門面寬度 (mm)</label>
+                                <div class="relative">
+                                    <input type="number" id="doorWidth" value="6000" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-3.5 pr-12 py-2 text-sm font-medium tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    <span class="absolute right-3 top-2 text-xs text-slate-400">mm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">門面高度 (mm)</label>
+                                <div class="relative">
+                                    <input type="number" id="doorHeight" value="2700" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-3.5 pr-12 py-2 text-sm font-medium tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    <span class="absolute right-3 top-2 text-xs text-slate-400">mm</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">門片總數量 (片/排)</label>
+                                <div class="relative">
+                                    <input type="number" id="panelCount" value="5" min="1" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-3.5 pr-12 py-2 text-sm font-medium tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    <span class="absolute right-3 top-2 text-xs text-slate-400">片/排</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 才數與基本金額計算列 -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                            <div>
+                                <span class="block text-xs text-slate-500 mb-0.5">換算才數 (寬 × 高 ÷ 91,809)</span>
+                                <div class="text-xl font-bold text-slate-800 tabular-nums">
+                                    <span id="displayCai">176.45</span> <span class="text-sm font-normal text-slate-500">才</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">每才單價 (自行輸入)</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-2 text-sm text-slate-400">$</span>
+                                    <input type="number" id="pricePerCai" value="425" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-7 pr-10 py-1.5 text-sm font-semibold text-blue-700 bg-white tabular-nums focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    <span class="absolute right-3 top-2 text-xs text-slate-400">元/才</span>
+                                </div>
+                            </div>
+                            <div class="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200">
+                                <span class="block text-xs text-slate-500 mb-0.5">基本金額 (才數 × 單價)</span>
+                                <div class="text-xl font-bold text-blue-700 tabular-nums">
+                                    NT$ <span id="displayBasePrice">74,991</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. 門片材質、烤漆與選購排數加價區塊 -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center mr-2.5">3</span>
+                            門片材質、烤漆與選購排數加價
+                        </h2>
+                    </div>
+                    <div class="p-5 space-y-6">
+                        
+                        <!-- 門片烤漆顏色與門片材質並排 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- 門片烤漆顏色 -->
+                            <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                                <label class="block text-sm font-bold text-slate-800">門片烤漆顏色</label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="doorColor" value="牙白色" checked onchange="onDoorColorChange()" class="peer sr-only">
+                                        <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                            牙白色
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="doorColor" value="鐵灰色" onchange="onDoorColorChange()" class="peer sr-only">
+                                        <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                            鐵灰色
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="doorColor" value="其他" onchange="onDoorColorChange()" class="peer sr-only">
+                                        <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                            其他顏色
+                                        </div>
+                                    </label>
+                                </div>
+                                <div id="doorColorOtherNoteWrap" class="hidden">
+                                    <input type="text" id="doorColorOtherName" oninput="calculateAll()" placeholder="請填寫指定色號/顏色名稱 (選填)" class="w-full rounded-lg border-slate-300 border px-3 py-1.5 text-xs bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div class="flex items-center justify-between pt-1">
+                                    <span class="text-xs text-slate-500">烤漆加購價 (基本色 0 元)：</span>
+                                    <div class="relative w-32">
+                                        <span class="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                                        <input type="number" id="doorColorPrice" value="0" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-6 pr-6 py-1 text-sm text-right font-semibold bg-white tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <span class="absolute right-2 top-1.5 text-xs text-slate-400">元</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 門片材質 -->
+                            <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                                <label class="block text-sm font-bold text-slate-800">門片材質</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="doorMaterial" value="基本鍍鋅鋼" checked onchange="onDoorMaterialChange()" class="peer sr-only">
+                                        <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                            基本鍍鋅鋼
+                                        </div>
+                                    </label>
+                                    <label class="cursor-pointer">
+                                        <input type="radio" name="doorMaterial" value="不鏽鋼" onchange="onDoorMaterialChange()" class="peer sr-only">
+                                        <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                            不鏽鋼
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between pt-1">
+                                    <span id="doorMaterialPriceLabel" class="text-xs text-slate-500">鍍鋅鋼加購價 (預設 0 元)：</span>
+                                    <div class="relative w-32">
+                                        <span class="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                                        <input type="number" id="doorMaterialPrice" value="0" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-6 pr-6 py-1 text-sm text-right font-semibold bg-white tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <span class="absolute right-2 top-1.5 text-xs text-slate-400">元</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 門片類型與選購排數加價明細 -->
+                        <div>
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-800">門片類型與選購加價明細</h3>
+                                    <p class="text-xs text-slate-500">基本報價已含全鋼板；若需更換為以下特殊門片，請輸入「選購排數」與「每排加購單價」</p>
+                                </div>
+                                <div id="panelSummaryBadge" class="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                                    已選購特殊排數：<span id="selectedSpecialRows" class="font-bold text-blue-700">0</span> 排 / 總門片 <span id="totalPanelDisplay">5</span> 片
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-slate-100 text-slate-700 text-xs uppercase border-b border-slate-200">
+                                        <tr>
+                                            <th class="py-2.5 px-3.5 font-semibold">門片類型</th>
+                                            <th class="py-2.5 px-3 font-semibold w-28 text-center">選購排數</th>
+                                            <th class="py-2.5 px-3 font-semibold w-36 text-right">一排單價 (元)</th>
+                                            <th class="py-2.5 px-3.5 font-semibold w-32 text-right">加價小計</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-200 bg-white">
+                                        <!-- 基本鋼板列 -->
+                                        <tr class="bg-slate-50/50">
+                                            <td class="py-2.5 px-3.5">
+                                                <span class="font-medium text-slate-800">鋼板</span>
+                                                <span class="ml-1.5 text-xs text-slate-400">(基本配置，含在基本金額內)</span>
+                                            </td>
+                                            <td class="py-2.5 px-3 text-center text-xs text-slate-500" id="steelPanelRemaining">剩餘 5 排</td>
+                                            <td class="py-2.5 px-3 text-right text-xs text-slate-400">基本內含</td>
+                                            <td class="py-2.5 px-3.5 text-right font-medium text-slate-500 tabular-nums">$0</td>
+                                        </tr>
+                                        <!-- 光玻璃 -->
+                                        <tr>
+                                            <td class="py-2.5 px-3.5 font-medium text-slate-800">光玻璃</td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="qty_clearGlass" value="0" min="0" oninput="calculateAll()" class="w-full rounded-md border-slate-300 border px-2 py-1 text-center text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="price_clearGlass" value="0" min="0" oninput="calculateAll()" placeholder="自行輸入" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-right text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2.5 px-3.5 text-right font-semibold text-slate-800 tabular-nums">$<span id="sub_clearGlass">0</span></td>
+                                        </tr>
+                                        <!-- 磨砂玻璃 -->
+                                        <tr>
+                                            <td class="py-2.5 px-3.5 font-medium text-slate-800">磨砂玻璃</td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="qty_frostedGlass" value="0" min="0" oninput="calculateAll()" class="w-full rounded-md border-slate-300 border px-2 py-1 text-center text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="price_frostedGlass" value="0" min="0" oninput="calculateAll()" placeholder="自行輸入" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-right text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2.5 px-3.5 text-right font-semibold text-slate-800 tabular-nums">$<span id="sub_frostedGlass">0</span></td>
+                                        </tr>
+                                        <!-- 發泡板 -->
+                                        <tr>
+                                            <td class="py-2.5 px-3.5 font-medium text-slate-800">發泡板</td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="qty_foamBoard" value="0" min="0" oninput="calculateAll()" class="w-full rounded-md border-slate-300 border px-2 py-1 text-center text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="price_foamBoard" value="0" min="0" oninput="calculateAll()" placeholder="自行輸入" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-right text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2.5 px-3.5 text-right font-semibold text-slate-800 tabular-nums">$<span id="sub_foamBoard">0</span></td>
+                                        </tr>
+                                        <!-- 花格鋁 -->
+                                        <tr>
+                                            <td class="py-2.5 px-3.5 font-medium text-slate-800">花格鋁</td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="qty_latticeAlum" value="0" min="0" oninput="calculateAll()" class="w-full rounded-md border-slate-300 border px-2 py-1 text-center text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="price_latticeAlum" value="0" min="0" oninput="calculateAll()" placeholder="自行輸入" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-right text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2.5 px-3.5 text-right font-semibold text-slate-800 tabular-nums">$<span id="sub_latticeAlum">0</span></td>
+                                        </tr>
+                                        <!-- 企口板 -->
+                                        <tr>
+                                            <td class="py-2.5 px-3.5 font-medium text-slate-800">企口板</td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="qty_tongueGroove" value="0" min="0" oninput="calculateAll()" class="w-full rounded-md border-slate-300 border px-2 py-1 text-center text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="price_tongueGroove" value="0" min="0" oninput="calculateAll()" placeholder="自行輸入" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-right text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2.5 px-3.5 text-right font-semibold text-slate-800 tabular-nums">$<span id="sub_tongueGroove">0</span></td>
+                                        </tr>
+                                        <!-- 其他類型 -->
+                                        <tr>
+                                            <td class="py-2 px-3.5">
+                                                <div class="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                                                    <span class="font-medium text-slate-800 shrink-0">其他：</span>
+                                                    <input type="text" id="otherPanelName" oninput="calculateAll()" placeholder="輸入自訂門片名稱" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                                                </div>
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="qty_otherPanel" value="0" min="0" oninput="calculateAll()" class="w-full rounded-md border-slate-300 border px-2 py-1 text-center text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2 px-3">
+                                                <input type="number" id="price_otherPanel" value="0" min="0" oninput="calculateAll()" placeholder="自行輸入" class="w-full rounded-md border-slate-300 border px-2.5 py-1 text-right text-sm tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                            </td>
+                                            <td class="py-2.5 px-3.5 text-right font-semibold text-slate-800 tabular-nums">$<span id="sub_otherPanel">0</span></td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot class="bg-slate-50 border-t border-slate-200">
+                                        <tr>
+                                            <td colspan="3" class="py-2.5 px-3.5 text-right text-xs font-bold text-slate-700">門片選購加價總計：</td>
+                                            <td class="py-2.5 px-3.5 text-right font-bold text-blue-700 tabular-nums">NT$ <span id="displayPanelsAddonTotal">0</span></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- 4. 軌道規格與價格區塊 -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center mr-2.5">4</span>
+                            軌道規格與價格
+                        </h2>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- 軌道材質 -->
+                        <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                            <label class="block text-sm font-bold text-slate-800">軌道材質</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="trackMaterial" value="鍍鋅鋼" checked onchange="onTrackMaterialChange()" class="peer sr-only">
+                                    <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                        鍍鋅鋼
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="trackMaterial" value="不鏽鋼" onchange="onTrackMaterialChange()" class="peer sr-only">
+                                    <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                        不鏽鋼
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between pt-1">
+                                <span id="trackMaterialHint" class="text-xs text-slate-500">鍍鋅鋼預設 3,000 元 (可更改)：</span>
+                                <div class="relative w-32">
+                                    <span class="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                                    <input type="number" id="trackMaterialPrice" value="3000" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-6 pr-6 py-1 text-sm text-right font-semibold bg-white tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <span class="absolute right-2 top-1.5 text-xs text-slate-400">元</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 軌道烤漆顏色 -->
+                        <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                            <label class="block text-sm font-bold text-slate-800">軌道烤漆顏色</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="trackColor" value="牙白色" checked onchange="onTrackColorChange()" class="peer sr-only">
+                                    <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                        牙白色
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="trackColor" value="鐵灰色" onchange="onTrackColorChange()" class="peer sr-only">
+                                    <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                        鐵灰色
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="trackColor" value="其他" onchange="onTrackColorChange()" class="peer sr-only">
+                                    <div class="text-center py-2 px-2 rounded-lg border border-slate-300 bg-white text-xs sm:text-sm font-medium peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                        其他
+                                    </div>
+                                </label>
+                            </div>
+                            <div id="trackColorOtherNoteWrap" class="hidden">
+                                <input type="text" id="trackColorOtherName" oninput="calculateAll()" placeholder="請填寫軌道指定顏色 / 備註" class="w-full rounded-lg border-slate-300 border px-3 py-1.5 text-xs bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div class="flex items-center justify-between pt-1">
+                                <span id="trackColorHint" class="text-xs text-slate-500">基本色預設 2,000 元 (可更改)：</span>
+                                <div class="relative w-32">
+                                    <span class="absolute left-2.5 top-1.5 text-xs text-slate-400">$</span>
+                                    <input type="number" id="trackColorPrice" value="2000" min="0" placeholder="自行輸入" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-6 pr-6 py-1 text-sm text-right font-semibold bg-white tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <span class="absolute right-2 top-1.5 text-xs text-slate-400">元</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. 五金與動力配件區塊 -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center">
+                            <span class="w-6 h-6 rounded-full bg-slate-800 text-white text-xs flex items-center justify-center mr-2.5">5</span>
+                            五金與動力配件
+                        </h2>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <!-- 彈簧價格 -->
+                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                            <label class="block text-sm font-bold text-slate-800 mb-1">彈簧價格 (自行輸入)</label>
+                            <p class="text-xs text-slate-500 mb-3">依據門片重量與尺寸配置扭力彈簧</p>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 text-sm text-slate-400">NT$</span>
+                                <input type="number" id="springPrice" value="0" min="0" oninput="calculateAll()" placeholder="請輸入彈簧金額" class="w-full rounded-lg border-slate-300 border pl-11 pr-8 py-2 text-base font-semibold bg-white text-right tabular-nums focus:ring-2 focus:ring-blue-500 outline-none">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-400">元</span>
+                            </div>
+                        </div>
+
+                        <!-- 馬達價格 -->
+                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-sm font-bold text-slate-800">馬達價格</label>
+                                <label class="inline-flex items-center cursor-pointer text-xs font-medium text-slate-600">
+                                    <input type="checkbox" id="includeMotor" checked onchange="onMotorToggle()" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mr-1.5 w-4 h-4">
+                                    <span>包含馬達</span>
+                                </label>
+                            </div>
+                            <p class="text-xs text-slate-500 mb-3">基本預設為 7,000 元，可直接修改單價</p>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 text-sm text-slate-400">NT$</span>
+                                <input type="number" id="motorPrice" value="7000" min="0" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border pl-11 pr-8 py-2 text-base font-semibold bg-white text-right tabular-nums focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-400">元</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 備註欄 -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <label class="block text-sm font-bold text-slate-800 mb-2">訂單備註 / 施工注意事項 (選填)</label>
+                    <textarea id="orderNotes" rows="2" oninput="calculateAll()" class="w-full rounded-lg border-slate-300 border px-3.5 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：含舊門拆除清運、遙控器數量、預留電源位置等..."></textarea>
+                </section>
+
+            </div>
+
+            <!-- 右側即時總價試算明細欄 (佔 4 欄，桌機版 sticky) -->
+            <div class="lg:col-span-4 lg:sticky lg:top-22 space-y-4">
+                <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-800 text-white px-5 py-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-base font-bold">即時費用試算明細</h3>
+                            <span id="summaryOrderNoBadge" class="text-xs bg-slate-700 px-2.5 py-1 rounded text-slate-200 font-mono">ORD-20261120-01</span>
+                        </div>
+                        <p class="text-xs text-slate-300 mt-1">規格：<span id="summarySpecText">6000 × 2700 mm (176.45 才 / 5片)</span></p>
+                    </div>
+
+                    <div class="p-5 space-y-3 text-sm">
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <div>
+                                <span class="text-slate-700 font-medium">門面基本金額</span>
+                                <span class="block text-xs text-slate-400">全鋼板・基本色烤漆</span>
+                            </div>
+                            <span class="font-semibold text-slate-800 tabular-nums">$<span id="sumBasePrice">74,991</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <div>
+                                <span class="text-slate-700">門片烤漆加價</span>
+                                <span id="sumDoorColorTag" class="ml-1 text-xs text-slate-400">(牙白色)</span>
+                            </div>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumDoorColorPrice">0</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <div>
+                                <span class="text-slate-700">門片材質加價</span>
+                                <span id="sumDoorMatTag" class="ml-1 text-xs text-slate-400">(基本鍍鋅鋼)</span>
+                            </div>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumDoorMatPrice">0</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-start py-1 border-b border-slate-100">
+                            <div>
+                                <span class="text-slate-700">門片選購排數加價</span>
+                                <div id="sumPanelsBreakdown" class="text-xs text-slate-400 mt-0.5">無額外選購</div>
+                            </div>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumPanelsAddonPrice">0</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <div>
+                                <span class="text-slate-700">軌道材質費</span>
+                                <span id="sumTrackMatTag" class="ml-1 text-xs text-slate-400">(鍍鋅鋼)</span>
+                            </div>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumTrackMatPrice">3,000</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <div>
+                                <span class="text-slate-700">軌道烤漆費</span>
+                                <span id="sumTrackColorTag" class="ml-1 text-xs text-slate-400">(牙白色)</span>
+                            </div>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumTrackColorPrice">2,000</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                            <span class="text-slate-700">彈簧費用</span>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumSpringPrice">0</span></span>
+                        </div>
+
+                        <div class="flex justify-between items-center py-1">
+                            <div>
+                                <span class="text-slate-700">馬達費用</span>
+                                <span id="sumMotorTag" class="ml-1 text-xs text-slate-400">(含馬達)</span>
+                            </div>
+                            <span class="font-medium text-slate-800 tabular-nums">$<span id="sumMotorPrice">7,000</span></span>
+                        </div>
+
+                        <!-- 總金額卡片 -->
+                        <div class="mt-4 pt-4 border-t-2 border-slate-800 bg-blue-50/70 -mx-5 px-5 py-4">
+                            <div class="flex items-baseline justify-between">
+                                <span class="text-base font-bold text-slate-900">訂單估價總金額</span>
+                                <div class="text-right">
+                                    <span class="text-xs font-semibold text-blue-700 mr-1">NTD</span>
+                                    <span id="sumGrandTotal" class="text-2xl sm:text-3xl font-extrabold text-blue-700 tabular-nums">86,991</span>
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-1 text-right">※ 以上試算金額未稅（如需開立發票稅金另計）</p>
+                        </div>
+
+                        <!-- 操作按鈕群 -->
+                        <div class="pt-3 space-y-2.5">
+                            <button type="button" onclick="openPrintPreview()" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <span>生成正式報價單 / 列印 PDF</span>
+                            </button>
+
+                            <button type="button" onclick="copyQuoteSummary()" class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm transition flex items-center justify-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                                </svg>
+                                <span>複製報價摘要文字 (貼至 LINE)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- 隱藏的複製文字用 Textarea -->
+    <textarea id="clipboardHelper" class="sr-only" aria-hidden="true"></textarea>
+
+    <!-- 自訂提示訊息 Toast -->
+    <div id="toastNotification" class="no-print fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center space-x-2.5 text-sm font-medium">
+        <svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span id="toastMessage">已複製報價單內容！</span>
+    </div>
+
+    <!-- 自訂重設確認對話框 (不使用 window.confirm) -->
+    <div id="resetConfirmModal" class="no-print fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200">
+            <h3 class="text-lg font-bold text-slate-900">確定要清除重填嗎？</h3>
+            <p class="text-sm text-slate-600 mt-2">這將會把所有客戶資料、尺寸與選購金額恢復為初始預設值。</p>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeResetModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg">取消</button>
+                <button type="button" onclick="confirmResetForm()" class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg">確定重設</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- A4 正式報價單預覽與列印區塊 (平時隱藏，點擊預覽或列印時顯示) -->
+    <div id="printPreviewOverlay" class="fixed inset-0 z-50 hidden bg-slate-900/75 overflow-y-auto p-2 sm:p-6">
+        <div class="max-w-4xl mx-auto">
+            <!-- 預覽上方工具列 (列印時隱藏) -->
+            <div class="no-print bg-slate-800 text-white px-4 py-3 rounded-t-xl flex flex-wrap items-center justify-between gap-2">
+                <span class="text-sm font-semibold">正式報價單 A4 預覽模式</span>
+                <div class="flex items-center space-x-2">
+                    <button type="button" onclick="closePrintPreview()" class="px-3 py-1.5 text-xs sm:text-sm bg-slate-700 hover:bg-slate-600 rounded-lg">
+                        返回編輯
+                    </button>
+                    <button type="button" onclick="window.print()" class="px-4 py-1.5 text-xs sm:text-sm bg-blue-600 hover:bg-blue-500 font-bold rounded-lg flex items-center space-x-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        <span>立即列印 / 另存 PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 實際列印紙張內容 -->
+            <div id="print-sheet" class="bg-white p-6 sm:p-10 rounded-b-xl shadow-2xl text-slate-900">
+                <!-- 報價單抬頭 -->
+                <div class="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between items-end">
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-wider text-slate-900">車庫門工程估價單 / 訂購單</h1>
+                        <p class="text-xs text-slate-500 mt-1">GARAGE DOOR QUOTATION & ORDER SHEET</p>
+                    </div>
+                    <div class="text-right text-xs space-y-1">
+                        <p><span class="font-semibold">訂單編號：</span><span id="prtOrderNo" class="font-mono"></span></p>
+                        <p><span class="font-semibold">報價日期：</span><span id="prtDate"></span></p>
+                    </div>
+                </div>
+
+                <!-- 客戶與案場資訊表 -->
+                <table class="w-full text-sm border-collapse border border-slate-300 mb-6">
+                    <tbody>
+                        <tr>
+                            <th class="bg-slate-100 border border-slate-300 px-3 py-2 text-left w-28 font-semibold">客戶姓名</th>
+                            <td id="prtCustomerName" class="border border-slate-300 px-3 py-2 w-1/3"></td>
+                            <th class="bg-slate-100 border border-slate-300 px-3 py-2 text-left w-28 font-semibold">聯絡電話</th>
+                            <td id="prtCustomerPhone" class="border border-slate-300 px-3 py-2"></td>
+                        </tr>
+                        <tr>
+                            <th class="bg-slate-100 border border-slate-300 px-3 py-2 text-left font-semibold">案場地址</th>
+                            <td id="prtSiteAddress" colspan="3" class="border border-slate-300 px-3 py-2"></td>
+                        </tr>
+                        <tr>
+                            <th class="bg-slate-100 border border-slate-300 px-3 py-2 text-left font-semibold">門面尺寸</th>
+                            <td id="prtDimensions" class="border border-slate-300 px-3 py-2"></td>
+                            <th class="bg-slate-100 border border-slate-300 px-3 py-2 text-left font-semibold">門片總數</th>
+                            <td id="prtPanelCount" class="border border-slate-300 px-3 py-2"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- 報價明細表 -->
+                <table class="w-full text-sm border-collapse border border-slate-300 mb-6">
+                    <thead>
+                        <tr class="bg-slate-800 text-white">
+                            <th class="border border-slate-700 px-3 py-2 text-center w-12">項次</th>
+                            <th class="border border-slate-700 px-3 py-2 text-left">項目名稱與規格說明</th>
+                            <th class="border border-slate-700 px-3 py-2 text-center w-28">數量/單位</th>
+                            <th class="border border-slate-700 px-3 py-2 text-right w-28">單價</th>
+                            <th class="border border-slate-700 px-3 py-2 text-right w-32">金額 (NTD)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="prtItemsBody" class="divide-y divide-slate-300">
+                        <!-- 由 JS 動態填入 -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-slate-100 font-bold text-base">
+                            <td colspan="4" class="border border-slate-300 px-3 py-3 text-right">估價總金額 (未稅)：</td>
+                            <td class="border border-slate-300 px-3 py-3 text-right text-blue-800 tabular-nums">NT$ <span id="prtGrandTotal">0</span></td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <!-- 備註與簽章欄 -->
+                <div class="border border-slate-300 rounded-lg p-3.5 mb-8 text-xs space-y-1.5 bg-slate-50">
+                    <p class="font-bold text-slate-700">備註事項：</p>
+                    <p id="prtNotesText" class="text-slate-600 whitespace-pre-line">1. 基本金額包含全鋼板及基本色烤漆。&#10;2. 本報價單有效期限為 15 天，確認訂購請於下方簽章回傳。</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-8 pt-4 text-sm">
+                    <div class="border-t border-slate-400 pt-2">
+                        <p class="font-semibold">承辦廠商 / 經辦人簽章：</p>
+                    </div>
+                    <div class="border-t border-slate-400 pt-2">
+                        <p class="font-semibold">客戶確認訂購簽章：</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 格式化千分位數字
+        function formatNumber(num) {
+            return Math.round(num).toLocaleString('zh-TW');
+        }
+
+        // 取得數值輸入框的安全數字
+        function getNum(id) {
+            const val = parseFloat(document.getElementById(id).value);
+            return isNaN(val) || val < 0 ? 0 : val;
+        }
+
+        // 取得單選按鈕的值
+        function getRadioValue(name) {
+            const checked = document.querySelector(`input[name="${name}"]:checked`);
+            return checked ? checked.value : '';
+        }
+
+        // 自動產生今日訂單編號
+        function generateOrderNo() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const rand = String(Math.floor(Math.random() * 90) + 10);
+            document.getElementById('orderNo').value = `ORD-${y}${m}${d}-${rand}`;
+            calculateAll();
+        }
+
+        // 門片烤漆顏色切換連動
+        function onDoorColorChange() {
+            const color = getRadioValue('doorColor');
+            const priceInput = document.getElementById('doorColorPrice');
+            const otherWrap = document.getElementById('doorColorOtherNoteWrap');
+            if (color === '其他') {
+                priceInput.value = 3000;
+                otherWrap.classList.remove('hidden');
+            } else {
+                priceInput.value = 0;
+                otherWrap.classList.add('hidden');
+            }
+            calculateAll();
+        }
+
+        // 門片材質切換連動
+        function onDoorMaterialChange() {
+            const mat = getRadioValue('doorMaterial');
+            const priceInput = document.getElementById('doorMaterialPrice');
+            const label = document.getElementById('doorMaterialPriceLabel');
+            if (mat === '不鏽鋼') {
+                label.textContent = '不鏽鋼加購價 (請自行輸入)：';
+                if (parseFloat(priceInput.value) === 0) {
+                    priceInput.focus();
+                }
+            } else {
+                label.textContent = '鍍鋅鋼加購價 (預設 0 元)：';
+                priceInput.value = 0;
+            }
+            calculateAll();
+        }
+
+        // 軌道材質切換連動
+        function onTrackMaterialChange() {
+            const mat = getRadioValue('trackMaterial');
+            const priceInput = document.getElementById('trackMaterialPrice');
+            const hint = document.getElementById('trackMaterialHint');
+            if (mat === '鍍鋅鋼') {
+                priceInput.value = 3000;
+                hint.textContent = '鍍鋅鋼預設 3,000 元 (可更改)：';
+            } else {
+                priceInput.value = 3600;
+                hint.textContent = '不鏽鋼預設 3,600 元 (可更改)：';
+            }
+            calculateAll();
+        }
+
+        // 軌道烤漆顏色切換連動
+        function onTrackColorChange() {
+            const color = getRadioValue('trackColor');
+            const priceInput = document.getElementById('trackColorPrice');
+            const hint = document.getElementById('trackColorHint');
+            const otherWrap = document.getElementById('trackColorOtherNoteWrap');
+            if (color === '其他') {
+                priceInput.value = '';
+                hint.textContent = '其他色另外報價 (請自行輸入)：';
+                otherWrap.classList.remove('hidden');
+                priceInput.focus();
+            } else {
+                priceInput.value = 2000;
+                hint.textContent = '基本色預設 2,000 元 (可更改)：';
+                otherWrap.classList.add('hidden');
+            }
+            calculateAll();
+        }
+
+        // 馬達勾選切換
+        function onMotorToggle() {
+            const checked = document.getElementById('includeMotor').checked;
+            const motorInput = document.getElementById('motorPrice');
+            motorInput.disabled = !checked;
+            if (checked && getNum('motorPrice') === 0) {
+                motorInput.value = 7000;
+            }
+            calculateAll();
+        }
+
+        // 核心即時計算函式
+        function calculateAll() {
+            // 1. 門面尺寸與才數計算
+            const width = getNum('doorWidth');
+            const height = getNum('doorHeight');
+            const panelCount = getNum('panelCount');
+            const rawCai = (width * height) / 91809;
+            const caiRounded = Number(rawCai.toFixed(2));
+            const pricePerCai = getNum('pricePerCai');
+            const basePrice = Math.round(caiRounded * pricePerCai);
+
+            document.getElementById('displayCai').textContent = caiRounded.toFixed(2);
+            document.getElementById('displayBasePrice').textContent = formatNumber(basePrice);
+
+            // 2. 門片烤漆與材質
+            const doorColor = getRadioValue('doorColor');
+            const doorColorOtherName = document.getElementById('doorColorOtherName').value.trim();
+            const doorColorDisplay = (doorColor === '其他' && doorColorOtherName) ? `其他：${doorColorOtherName}` : doorColor;
+            const doorColorPrice = getNum('doorColorPrice');
+
+            const doorMaterial = getRadioValue('doorMaterial');
+            const doorMaterialPrice = getNum('doorMaterialPrice');
+
+            // 3. 門片選購排數加價明細
+            const panelTypes = [
+                { key: 'clearGlass', name: '光玻璃' },
+                { key: 'frostedGlass', name: '磨砂玻璃' },
+                { key: 'foamBoard', name: '發泡板' },
+                { key: 'latticeAlum', name: '花格鋁' },
+                { key: 'tongueGroove', name: '企口板' },
+                { key: 'otherPanel', name: document.getElementById('otherPanelName').value.trim() || '其他門片' }
+            ];
+
+            let totalSpecialRows = 0;
+            let panelsAddonTotal = 0;
+            let activeAddonList = [];
+
+            panelTypes.forEach(item => {
+                const qty = getNum(`qty_${item.key}`);
+                const unitPrice = getNum(`price_${item.key}`);
+                const sub = Math.round(qty * unitPrice);
+                document.getElementById(`sub_${item.key}`).textContent = formatNumber(sub);
+
+                totalSpecialRows += qty;
+                panelsAddonTotal += sub;
+
+                if (qty > 0) {
+                    activeAddonList.push({
+                        name: item.name,
+                        qty: qty,
+                        unitPrice: unitPrice,
+                        sub: sub
+                    });
+                }
+            });
+
+            // 更新門片排數提示
+            document.getElementById('selectedSpecialRows').textContent = totalSpecialRows;
+            document.getElementById('totalPanelDisplay').textContent = panelCount;
+            const remainingSteel = panelCount - totalSpecialRows;
+            const steelRemainingEl = document.getElementById('steelPanelRemaining');
+            const badgeEl = document.getElementById('panelSummaryBadge');
+
+            if (remainingSteel < 0) {
+                steelRemainingEl.textContent = `超出總門片 ${Math.abs(remainingSteel)} 排`;
+                steelRemainingEl.className = 'py-2.5 px-3 text-center text-xs text-red-600 font-bold';
+                badgeEl.className = 'text-xs font-medium px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200';
+            } else {
+                steelRemainingEl.textContent = `剩餘 ${remainingSteel} 排`;
+                steelRemainingEl.className = 'py-2.5 px-3 text-center text-xs text-slate-500';
+                badgeEl.className = 'text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200';
+            }
+
+            document.getElementById('displayPanelsAddonTotal').textContent = formatNumber(panelsAddonTotal);
+
+            // 4. 軌道費用
+            const trackMaterial = getRadioValue('trackMaterial');
+            const trackMaterialPrice = getNum('trackMaterialPrice');
+
+            const trackColor = getRadioValue('trackColor');
+            const trackColorOtherName = document.getElementById('trackColorOtherName').value.trim();
+            const trackColorDisplay = (trackColor === '其他' && trackColorOtherName) ? `其他：${trackColorOtherName}` : trackColor;
+            const trackColorPrice = getNum('trackColorPrice');
+
+            // 5. 彈簧與馬達
+            const springPrice = getNum('springPrice');
+            const includeMotor = document.getElementById('includeMotor').checked;
+            const motorPrice = includeMotor ? getNum('motorPrice') : 0;
+
+            // 6. 總金額
+            const grandTotal = basePrice + doorColorPrice + doorMaterialPrice + panelsAddonTotal + trackMaterialPrice + trackColorPrice + springPrice + motorPrice;
+
+            // 更新右側即時試算面板
+            const orderNo = document.getElementById('orderNo').value.trim() || '未填寫單號';
+            document.getElementById('summaryOrderNoBadge').textContent = orderNo;
+            document.getElementById('summarySpecText').textContent = `${width} × ${height} mm (${caiRounded.toFixed(2)} 才 / ${panelCount}片)`;
+
+            document.getElementById('sumBasePrice').textContent = formatNumber(basePrice);
+            document.getElementById('sumDoorColorTag').textContent = `(${doorColorDisplay})`;
+            document.getElementById('sumDoorColorPrice').textContent = formatNumber(doorColorPrice);
+            document.getElementById('sumDoorMatTag').textContent = `(${doorMaterial})`;
+            document.getElementById('sumDoorMatPrice').textContent = formatNumber(doorMaterialPrice);
+
+            document.getElementById('sumPanelsAddonPrice').textContent = formatNumber(panelsAddonTotal);
+            const breakdownEl = document.getElementById('sumPanelsBreakdown');
+            if (activeAddonList.length === 0) {
+                breakdownEl.textContent = '全鋼板 (無額外加購)';
+            } else {
+                breakdownEl.innerHTML = activeAddonList.map(a => `${a.name} ${a.qty}排 ($${formatNumber(a.sub)})`).join('<br>');
+            }
+
+            document.getElementById('sumTrackMatTag').textContent = `(${trackMaterial})`;
+            document.getElementById('sumTrackMatPrice').textContent = formatNumber(trackMaterialPrice);
+            document.getElementById('sumTrackColorTag').textContent = `(${trackColorDisplay})`;
+            document.getElementById('sumTrackColorPrice').textContent = formatNumber(trackColorPrice);
+
+            document.getElementById('sumSpringPrice').textContent = formatNumber(springPrice);
+            document.getElementById('sumMotorTag').textContent = includeMotor ? '(含馬達)' : '(不含馬達)';
+            document.getElementById('sumMotorPrice').textContent = formatNumber(motorPrice);
+
+            document.getElementById('sumGrandTotal').textContent = formatNumber(grandTotal);
+
+            // 回傳完整資料物件供複製與列印使用
+            return {
+                orderNo,
+                customerName: document.getElementById('customerName').value.trim(),
+                customerPhone: document.getElementById('customerPhone').value.trim(),
+                siteAddress: document.getElementById('siteAddress').value.trim(),
+                width,
+                height,
+                panelCount,
+                caiRounded,
+                pricePerCai,
+                basePrice,
+                doorColorDisplay,
+                doorColorPrice,
+                doorMaterial,
+                doorMaterialPrice,
+                activeAddonList,
+                panelsAddonTotal,
+                trackMaterial,
+                trackMaterialPrice,
+                trackColorDisplay,
+                trackColorPrice,
+                springPrice,
+                includeMotor,
+                motorPrice,
+                grandTotal,
+                notes: document.getElementById('orderNotes').value.trim()
+            };
+        }
+
+        // 開啟 A4 正式報價單預覽
+        function openPrintPreview() {
+            const data = calculateAll();
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+
+            document.getElementById('prtOrderNo').textContent = data.orderNo;
+            document.getElementById('prtDate').textContent = dateStr;
+            document.getElementById('prtCustomerName').textContent = data.customerName || '—';
+            document.getElementById('prtCustomerPhone').textContent = data.customerPhone || '—';
+            document.getElementById('prtSiteAddress').textContent = data.siteAddress || '—';
+            document.getElementById('prtDimensions').textContent = `寬 ${data.width} mm × 高 ${data.height} mm (共 ${data.caiRounded.toFixed(2)} 才)`;
+            document.getElementById('prtPanelCount').textContent = `${data.panelCount} 片/排`;
+
+            // 組合報價單明細列
+            const rows = [];
+            let idx = 1;
+
+            rows.push({
+                no: idx++,
+                desc: `車庫門門面基本工程 (全鋼板・基本色烤漆)`,
+                qty: `${data.caiRounded.toFixed(2)} 才`,
+                unit: `$${formatNumber(data.pricePerCai)}`,
+                total: `$${formatNumber(data.basePrice)}`
+            });
+
+            rows.push({
+                no: idx++,
+                desc: `門片烤漆顏色：${data.doorColorDisplay}`,
+                qty: `1 式`,
+                unit: `$${formatNumber(data.doorColorPrice)}`,
+                total: `$${formatNumber(data.doorColorPrice)}`
+            });
+
+            rows.push({
+                no: idx++,
+                desc: `門片材質：${data.doorMaterial}`,
+                qty: `1 式`,
+                unit: `$${formatNumber(data.doorMaterialPrice)}`,
+                total: `$${formatNumber(data.doorMaterialPrice)}`
+            });
+
+            data.activeAddonList.forEach(addon => {
+                rows.push({
+                    no: idx++,
+                    desc: `選購門片升級：${addon.name}`,
+                    qty: `${addon.qty} 排`,
+                    unit: `$${formatNumber(addon.unitPrice)}`,
+                    total: `$${formatNumber(addon.sub)}`
+                });
+            });
+
+            rows.push({
+                no: idx++,
+                desc: `軌道材質：${data.trackMaterial}`,
+                qty: `1 組`,
+                unit: `$${formatNumber(data.trackMaterialPrice)}`,
+                total: `$${formatNumber(data.trackMaterialPrice)}`
+            });
+
+            rows.push({
+                no: idx++,
+                desc: `軌道烤漆顏色：${data.trackColorDisplay}`,
+                qty: `1 式`,
+                unit: `$${formatNumber(data.trackColorPrice)}`,
+                total: `$${formatNumber(data.trackColorPrice)}`
+            });
+
+            rows.push({
+                no: idx++,
+                desc: `扭力彈簧五金配置`,
+                qty: `1 組`,
+                unit: `$${formatNumber(data.springPrice)}`,
+                total: `$${formatNumber(data.springPrice)}`
+            });
+
+            if (data.includeMotor) {
+                rows.push({
+                    no: idx++,
+                    desc: `車庫門專用動力馬達`,
+                    qty: `1 台`,
+                    unit: `$${formatNumber(data.motorPrice)}`,
+                    total: `$${formatNumber(data.motorPrice)}`
+                });
+            }
+
+            const tbody = document.getElementById('prtItemsBody');
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td class="border border-slate-300 px-3 py-2 text-center text-slate-600">${r.no}</td>
+                    <td class="border border-slate-300 px-3 py-2 font-medium">${r.desc}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-center">${r.qty}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-right tabular-nums">${r.unit}</td>
+                    <td class="border border-slate-300 px-3 py-2 text-right font-semibold tabular-nums">${r.total}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('prtGrandTotal').textContent = formatNumber(data.grandTotal);
+
+            const defaultNote = '1. 基本金額包含全鋼板及基本色烤漆。\n2. 本報價單金額未稅，確認訂購後安排生產製作。';
+            document.getElementById('prtNotesText').textContent = data.notes ? `${data.notes}\n${defaultNote}` : defaultNote;
+
+            document.getElementById('printPreviewOverlay').classList.remove('hidden');
+        }
+
+        function closePrintPreview() {
+            document.getElementById('printPreviewOverlay').classList.add('hidden');
+        }
+
+        // 複製 LINE 報價摘要文字
+        function copyQuoteSummary() {
+            const d = calculateAll();
+            let addonText = d.activeAddonList.length > 0
+                ? d.activeAddonList.map(a => `  ・${a.name} ${a.qty}排 × $${formatNumber(a.unitPrice)} = $${formatNumber(a.sub)}`).join('\n')
+                : '  ・全鋼板 (無額外選購)';
+
+            const text = [
+                `【車庫門訂單估價明細】`,
+                `訂單編號：${d.orderNo}`,
+                d.customerName ? `客戶姓名：${d.customerName}` : null,
+                d.customerPhone ? `聯絡電話：${d.customerPhone}` : null,
+                d.siteAddress ? `案場地址：${d.siteAddress}` : null,
+                `--------------------`,
+                `門面尺寸：寬 ${d.width} × 高 ${d.height} mm`,
+                `門片數量：${d.panelCount} 片/排`,
+                `換算才數：${d.caiRounded.toFixed(2)} 才 (每才 $${formatNumber(d.pricePerCai)})`,
+                `1. 基本金額(全鋼板/基本色)：$${formatNumber(d.basePrice)}`,
+                `2. 門片烤漆(${d.doorColorDisplay})：$${formatNumber(d.doorColorPrice)}`,
+                `3. 門片材質(${d.doorMaterial})：$${formatNumber(d.doorMaterialPrice)}`,
+                `4. 門片選購加價：$${formatNumber(d.panelsAddonTotal)}`,
+                addonText,
+                `5. 軌道材質(${d.trackMaterial})：$${formatNumber(d.trackMaterialPrice)}`,
+                `6. 軌道烤漆(${d.trackColorDisplay})：$${formatNumber(d.trackColorPrice)}`,
+                `7. 彈簧價格：$${formatNumber(d.springPrice)}`,
+                `8. 馬達價格(${d.includeMotor ? '含馬達' : '不含馬達'})：$${formatNumber(d.motorPrice)}`,
+                `--------------------`,
+                `估價總金額：NT$ ${formatNumber(d.grandTotal)} 元`,
+                d.notes ? `備註：${d.notes}` : null
+            ].filter(Boolean).join('\n');
+
+            const helper = document.getElementById('clipboardHelper');
+            helper.value = text;
+            helper.select();
+            helper.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
+                showToast('已複製報價摘要，可直接貼上 LINE 傳送！');
+            } catch (err) {
+                showToast('複製失敗，請手動選取複製');
+            }
+        }
+
+        // 顯示提示訊息
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            document.getElementById('toastMessage').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // 重設表單 Modal 控制
+        function resetFormModal() {
+            document.getElementById('resetConfirmModal').classList.remove('hidden');
+        }
+
+        function closeResetModal() {
+            document.getElementById('resetConfirmModal').classList.add('hidden');
+        }
+
+        function confirmResetForm() {
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerPhone').value = '';
+            document.getElementById('siteAddress').value = '';
+            document.getElementById('doorWidth').value = 6000;
+            document.getElementById('doorHeight').value = 2700;
+            document.getElementById('panelCount').value = 5;
+            document.getElementById('pricePerCai').value = 425;
+
+            document.querySelector('input[name="doorColor"][value="牙白色"]').checked = true;
+            document.getElementById('doorColorOtherName').value = '';
+            onDoorColorChange();
+
+            document.querySelector('input[name="doorMaterial"][value="基本鍍鋅鋼"]').checked = true;
+            onDoorMaterialChange();
+
+            ['clearGlass', 'frostedGlass', 'foamBoard', 'latticeAlum', 'tongueGroove', 'otherPanel'].forEach(k => {
+                document.getElementById(`qty_${k}`).value = 0;
+                document.getElementById(`price_${k}`).value = 0;
+            });
+            document.getElementById('otherPanelName').value = '';
+
+            document.querySelector('input[name="trackMaterial"][value="鍍鋅鋼"]').checked = true;
+            onTrackMaterialChange();
+
+            document.querySelector('input[name="trackColor"][value="牙白色"]').checked = true;
+            document.getElementById('trackColorOtherName').value = '';
+            onTrackColorChange();
+
+            document.getElementById('springPrice').value = 0;
+            document.getElementById('includeMotor').checked = true;
+            document.getElementById('motorPrice').disabled = false;
+            document.getElementById('motorPrice').value = 7000;
+            document.getElementById('orderNotes').value = '';
+
+            generateOrderNo();
+            closeResetModal();
+            showToast('表單已清除並恢復預設值');
+        }
+
+        // 初始化頁面
+        window.addEventListener('DOMContentLoaded', () => {
+            generateOrderNo();
+            calculateAll();
+        });
+    </script>
+</body>
+</html>
